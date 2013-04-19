@@ -21,27 +21,36 @@ public class BcDao<T, KD> {
 		cachedClass = BcCache.cacheClass(cls);
 		this.cls = cls;
 	}
+	
+	public QueryBuilder queryBuilder() {
+		return new QueryBuilder();
+	}
+	
+	public List<T> query(Query query) {
+		return queryMany(query);
+	}
 
 	public T queryById(KD key) {
-		return queryOne(new Query(cachedClass.idColName + " = ?", new String[] { key.toString() }, null, null, null));
+		return queryOne(new Query(cachedClass.idColName + " = ?", new String[] { key.toString() }, null, null, null, null));
 	}
 
 	public List<T> queryForEq(String column, String value) {
-		return queryMany(new Query(column + " = ?", new String[] { value }, null, null, null));
+		return queryMany(new Query(column + " = ?", new String[] { value }, null, null, null, null));
 	}
 
 	public List<T> queryForAll() {
-		return queryMany(new Query(null, null, null, null, null));
+		return queryMany(new Query(null, null, null, null, null, null));
 	}
 
 	private T queryOne(Query query) {
+		BcLog.i(query.toString());
 		SQLiteDatabase db = null;
 		Cursor c = null;
 		T instance = null;
 		try {
 			instance = (T) cls.newInstance();
 			db = BcSQLiteOpenHelper.getMyReadableDatabase();
-			c = db.query(cachedClass.tableName(), cachedClass.columns, query.selection, query.selectionArgs, query.groupBy, query.having, query.orderBy);
+			c = db.query(cachedClass.tableName(), cachedClass.columns, query.selection, query.selectionArgs, query.groupBy, query.having, query.orderBy, query.limit);
 			if (c.getCount() == 0) {
 				return null;
 			}
@@ -59,12 +68,13 @@ public class BcDao<T, KD> {
 	}
 
 	private List<T> queryMany(Query query) {
+		BcLog.i(query.toString());
 		SQLiteDatabase db = null;
 		Cursor c = null;
 		List<T> results = null;
 		try {
 			db = BcSQLiteOpenHelper.getMyReadableDatabase();
-			c = db.query(cachedClass.tableName(), cachedClass.columns, query.selection, query.selectionArgs, query.groupBy, query.having, query.orderBy);
+			c = db.query(cachedClass.tableName(), cachedClass.columns, query.selection, query.selectionArgs, query.groupBy, query.having, query.orderBy, query.limit);
 			results = new ArrayList<T>(c.getCount());
 			c.moveToFirst();
 			while (!c.isAfterLast()) {
@@ -139,7 +149,10 @@ public class BcDao<T, KD> {
 		int id = -1;
 		try {
 			db = BcSQLiteOpenHelper.getMyWritableDatabase();
+			db.beginTransaction();
 			id = updateObject(object, db);
+			db.setTransactionSuccessful();
+			db.endTransaction();
 		} catch (IllegalAccessException e) {
 			throw new RuntimeException(e);
 		} finally {
@@ -234,19 +247,104 @@ public class BcDao<T, KD> {
 		return db.delete(cachedClass.tableName(), cachedClass.idColName + " = ?", new String[] { idValue });
 	}
 
-	private class Query {
+	public class Query {
 		String selection;
 		String[] selectionArgs;
 		String groupBy;
 		String having;
 		String orderBy;
+		String limit;
 
-		public Query(String selection, String[] selectionArgs, String groupBy, String having, String orderBy) {
+		public Query(String selection, String[] selectionArgs, String groupBy, String having, String orderBy, String limit) {
 			this.selection = selection;
 			this.selectionArgs = selectionArgs;
 			this.groupBy = groupBy;
 			this.having = having;
 			this.orderBy = orderBy;
+			this.limit = limit;
 		}
+	}
+	
+	public class QueryBuilder {
+		
+		private Query query;
+		private List<String> selection;
+		private List<String> selectionArgs;
+		
+		QueryBuilder() {
+			query = new Query(null, null, null, null, null, null);
+			selection = new ArrayList<String>();
+			selectionArgs = new ArrayList<String>();
+		}
+		
+		public QueryBuilder eq(String column, String value) {
+			selection.add(column + " = ?");
+			selectionArgs.add(value);
+			return this;
+		}
+		
+		public QueryBuilder gt(String column, String value) {
+			selection.add(column + " > ?");
+			selectionArgs.add(value);
+			return this;
+		}
+		
+		public QueryBuilder lt(String column, String value) {
+			selection.add(column + " < ?");
+			selectionArgs.add(value);
+			return this;
+		}
+		
+		public QueryBuilder gte(String column, String value) {
+			selection.add(column + " >= ?");
+			selectionArgs.add(value);
+			return this;
+		}
+		
+		public QueryBuilder lte(String column, String value) {
+			selection.add(column + " <= ?");
+			selectionArgs.add(value);
+			return this;
+		}
+		
+		public QueryBuilder having(String having) {
+			query.having = having;
+			return this;
+		}
+		
+		public QueryBuilder orderBy(String orderBy, boolean ASC) {
+			query.orderBy = orderBy + (ASC ? " ASC" : " DESC");
+			return this;
+		}
+		
+		public QueryBuilder groupBy(String groupBy) {
+			query.groupBy = groupBy;
+			return this;
+		}
+		
+		public QueryBuilder limit(long limit) {
+			query.limit = Long.toString(limit);
+			return this;
+		}
+		
+		public List<T> execute() {
+			return query(prepare());
+		}
+		
+		public Query prepare() {
+			query.selectionArgs = new String[selectionArgs.size()];
+			selectionArgs.toArray(query.selectionArgs);
+			int i = 0;
+			StringBuilder s = new StringBuilder();
+			for (String sel : selection) {
+				s.append(sel);
+				if (++i != selection.size()) {
+					s.append(" AND ");
+				}
+			}
+			query.selection = s.toString();
+			return query;
+		}
+		
 	}
 }
