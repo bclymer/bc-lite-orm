@@ -40,6 +40,15 @@ public class TableUtil {
 		db.execSQL(query);
 	}
 	
+	public static void dropTable(SQLiteDatabase db, Class<?> cls) {
+		CachedClass cachedClass = BcCache.cacheClass(cls);
+		StringBuilder s = new StringBuilder("DROP TABLE IF EXISTS ");
+		s.append('`' + cachedClass.tableName() + '`');
+		String query = s.toString();
+		BcLog.i(query);
+		db.execSQL(query);
+	}
+	
 	public static SqlType typeToSQLString(Class<?> cls) {
 		if (cls.equals(Integer.TYPE) || cls.equals(Integer.class)) {
 			return SqlType.INTEGER;
