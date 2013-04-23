@@ -94,9 +94,9 @@ public class BcDao<T, KD> {
 		return results;
 	}
 
-	private void matchCursorToObject(Cursor c, T instance) throws IllegalArgumentException, IllegalAccessException {
+	private void matchCursorToObject(Cursor c, T instance) throws IllegalArgumentException, IllegalAccessException, InstantiationException {
 		for (Entry<Field, PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
-			switch (TableUtil.typeToSQLString(entry.getKey().getType())) {
+			switch (TableUtil.typeToSQLString(entry)) {
 			case BLOB:
 				entry.getKey().set(instance, c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
 				break;
@@ -108,6 +108,27 @@ public class BcDao<T, KD> {
 				break;
 			case TEXT:
 				entry.getKey().set(instance, c.getString(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+				break;
+			case FOREIGN:
+				CachedClass foreignCachedClass = BcCache.cacheClass(entry.getKey().getType());
+				Object o = entry.getKey().getType().newInstance();
+				entry.getKey().set(instance, o);
+				switch (TableUtil.typeToSQLString(foreignCachedClass.idEntry)) {
+				case BLOB:
+					foreignCachedClass.idEntry.getKey().set(o, c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+					break;
+				case INTEGER:
+					foreignCachedClass.idEntry.getKey().set(o, c.getInt(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+					break;
+				case REAL:
+					foreignCachedClass.idEntry.getKey().set(o, c.getDouble(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+					break;
+				case TEXT:
+					foreignCachedClass.idEntry.getKey().set(o, c.getString(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+					break;
+				case FOREIGN:
+					throw new IllegalArgumentException("ID field can not be a foreign key");
+				}
 				break;
 			}
 		}
@@ -149,10 +170,7 @@ public class BcDao<T, KD> {
 		int id = -1;
 		try {
 			db = BcSQLiteOpenHelper.getMyWritableDatabase();
-			db.beginTransaction();
 			id = updateObject(object, db);
-			db.setTransactionSuccessful();
-			db.endTransaction();
 		} catch (IllegalAccessException e) {
 			throw new RuntimeException(e);
 		} finally {
@@ -217,11 +235,9 @@ public class BcDao<T, KD> {
 
 	private int updateObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
 		ContentValues values = new ContentValues();
-		String idValue = null;
+		String idValue = cachedClass.idEntry.getKey().get(object).toString();
 		for (Entry<Field, PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
-			if (cachedClass.columnName(entry.getKey()).equals(cachedClass.idColName)) {
-				idValue = entry.getKey().get(object).toString();
-			} else {
+			if (!cachedClass.columnName(entry.getKey()).equals(cachedClass.idColName)) {
 				values.put(cachedClass.columnName(entry.getKey()), entry.getKey().get(object).toString());
 			}
 		}
@@ -231,19 +247,21 @@ public class BcDao<T, KD> {
 	private long insertObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
 		ContentValues values = new ContentValues();
 		for (Entry<Field, PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
-			values.put(cachedClass.columnName(entry.getKey()), entry.getKey().get(object).toString());
+			if (!entry.getValue().foreign()) {
+				values.put(cachedClass.columnName(entry.getKey()), entry.getKey().get(object).toString());
+			} else {
+				CachedClass foreignCachedClass = BcCache.cacheClass(entry.getKey().getType());
+				Object o = entry.getKey().get(object);
+				if (o != null) {
+					values.put(cachedClass.columnName(entry.getKey()), foreignCachedClass.idEntry.getKey().get(o).toString());
+				}
+			}
 		}
 		return db.insert(cachedClass.tableName(), null, values);
 	}
 
 	private int deleteObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
-		String idValue = null;
-		for (Entry<Field, PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
-			if (cachedClass.columnName(entry.getKey()).equals(cachedClass.idColName)) {
-				idValue = entry.getKey().get(object).toString();
-				break;
-			}
-		}
+		String idValue = cachedClass.idEntry.getKey().get(object).toString();
 		return db.delete(cachedClass.tableName(), cachedClass.idColName + " = ?", new String[] { idValue });
 	}
 

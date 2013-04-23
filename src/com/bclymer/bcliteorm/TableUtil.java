@@ -23,7 +23,7 @@ public class TableUtil {
 		for (Entry<Field,PersistantField> fieldAnnotation : cachedClass.fieldAnnotations.entrySet()) {
 			s.append('`' + cachedClass.columnName(fieldAnnotation.getKey()) + '`');
 			s.append(" ");
-			s.append(typeToSQLString(fieldAnnotation.getKey().getType()).name());
+			s.append(typeToSQLString(fieldAnnotation).value);
 			if (fieldAnnotation.getValue().id()) {
 				s.append(" PRIMARY KEY");
 			} else if (fieldAnnotation.getValue().generatedId()) {
@@ -49,7 +49,11 @@ public class TableUtil {
 		db.execSQL(query);
 	}
 	
-	public static SqlType typeToSQLString(Class<?> cls) {
+	public static SqlType typeToSQLString(Entry<Field,PersistantField> entry) {
+		if (entry.getValue().foreign()) {
+			return SqlType.FOREIGN;
+		}
+		Class<?> cls = entry.getKey().getType();
 		if (cls.equals(Integer.TYPE) || cls.equals(Integer.class)) {
 			return SqlType.INTEGER;
 		} else if (cls.equals(String.class)) {
@@ -63,10 +67,17 @@ public class TableUtil {
 	}
 	
 	public enum SqlType {
-		INTEGER,
-		TEXT,
-		REAL,
-		BLOB;
+		INTEGER("INTEGER"),
+		TEXT("TEXT"),
+		REAL("REAL"),
+		BLOB("BLOB"),
+		FOREIGN("INTEGER");
+		
+		public String value;
+		
+		SqlType(String value) {
+			this.value = value;
+		}
 	}
 	
 }

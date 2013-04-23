@@ -34,9 +34,15 @@ class BcCache {
 				PersistantField persistantField = field.getAnnotation(PersistantField.class);
 				cachedClass.fieldAnnotations.put(field, persistantField);
 				if (persistantField.id()) {
+					if (hasIdField) {
+						throw new IllegalArgumentException("Class " + cls.getSimpleName() + " has more than 1 id fields");
+					}
 					hasIdField = true;
 					cachedClass.idColName = cachedClass.columnName(field);
 				} else if (persistantField.generatedId()) {
+					if (hasIdField) {
+						throw new IllegalArgumentException("Class " + cls.getSimpleName() + " has more than 1 id fields");
+					}
 					hasIdField = true;
 					cachedClass.idColName = cachedClass.columnName(field);
 				}
@@ -46,6 +52,9 @@ class BcCache {
 		int i = 0;
 		for (Entry<Field,PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
 			cachedClass.columns[i++] = cachedClass.columnName(entry.getKey());
+			if (entry.getValue().id()) {
+				cachedClass.idEntry = entry;
+			}
 		}
 		if (!hasIdField) {
 			throw new IllegalArgumentException("Class " + cls.getSimpleName() + " didn't have an id field");
@@ -58,6 +67,7 @@ class BcCache {
 	
 	static class CachedClass {
 		Map<Field, PersistantField> fieldAnnotations;
+		Entry<Field, PersistantField> idEntry;
 		PersistantObject persistantObject;
 		Class<?> cls;
 		String idColName;

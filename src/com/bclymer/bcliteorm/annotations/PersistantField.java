@@ -11,4 +11,5 @@ public @interface PersistantField {
 	String columnName() default "";
 	boolean id() default false;
 	boolean generatedId() default false;
+	boolean foreign() default false;
 }
