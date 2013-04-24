@@ -51,7 +51,7 @@ class BcCache {
 		cachedClass.columns = new String[cachedClass.fieldAnnotations.size()];
 		int i = 0;
 		for (Entry<Field,PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
-			cachedClass.columns[i++] = cachedClass.columnName(entry.getKey());
+			cachedClass.columns[i++] = BcOrm.tickAndCombine(cachedClass.columnName(entry.getKey()));
 			if (entry.getValue().id()) {
 				cachedClass.idEntry = entry;
 			}

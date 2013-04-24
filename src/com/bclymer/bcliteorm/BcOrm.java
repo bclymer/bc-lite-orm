@@ -27,4 +27,12 @@ public class BcOrm {
 		}
 	}
 	
+	static String tickAndCombine(String param, String... append) {
+		StringBuilder str = new StringBuilder("`").append(param).append("`");
+		for (String string : append) {
+			str.append(string);
+		}
+		return str.toString();
+	}
+	
 }

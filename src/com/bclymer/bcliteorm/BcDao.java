@@ -340,47 +340,47 @@ public class BcDao<T, KD> {
 		}
 		
 		public QueryBuilder eq(String column, String value) {
-			selection.add(column + " = ?");
+			selection.add(BcOrm.tickAndCombine(column, " = ?"));
 			selectionArgs.add(value);
 			return this;
 		}
 		
 		public QueryBuilder gt(String column, String value) {
-			selection.add(column + " > ?");
+			selection.add(BcOrm.tickAndCombine(column, " > ?"));
 			selectionArgs.add(value);
 			return this;
 		}
 		
 		public QueryBuilder lt(String column, String value) {
-			selection.add(column + " < ?");
+			selection.add(BcOrm.tickAndCombine(column, " < ?"));
 			selectionArgs.add(value);
 			return this;
 		}
 		
 		public QueryBuilder gte(String column, String value) {
-			selection.add(column + " >= ?");
+			selection.add(BcOrm.tickAndCombine(column, " >= ?"));
 			selectionArgs.add(value);
 			return this;
 		}
 		
 		public QueryBuilder lte(String column, String value) {
-			selection.add(column + " <= ?");
+			selection.add(BcOrm.tickAndCombine(column, " <= ?"));
 			selectionArgs.add(value);
 			return this;
 		}
 		
 		public QueryBuilder having(String having) {
-			query.having = having;
+			query.having = BcOrm.tickAndCombine(having);
 			return this;
 		}
 		
 		public QueryBuilder orderBy(String orderBy, boolean ASC) {
-			query.orderBy = orderBy + (ASC ? " ASC" : " DESC");
+			query.orderBy = BcOrm.tickAndCombine(orderBy, (ASC ? " ASC" : " DESC"));
 			return this;
 		}
 		
 		public QueryBuilder groupBy(String groupBy) {
-			query.groupBy = groupBy;
+			query.groupBy = BcOrm.tickAndCombine(groupBy);
 			return this;
 		}
 		
