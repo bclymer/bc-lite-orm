@@ -41,6 +41,41 @@ public class BcDao<T, KD> {
 	public List<T> queryForAll() {
 		return queryMany(new Query(null, null, null, null, null, null));
 	}
+	
+	public void refresh(T object) {
+		try {
+			String id = cachedClass.idEntry.getKey().get(object).toString();
+			T newObject = queryOne(new Query(cachedClass.idColName + " = ?", new String[] { id }, null, null, null, null));
+			for (Entry<Field,PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
+				entry.getKey().set(object, entry.getKey().get(newObject));
+			}
+		} catch (IllegalArgumentException e) {
+			throw new RuntimeException(e);
+		} catch (IllegalAccessException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public List<T> fetchAllChildrenOfObject(Object o) {
+		CachedClass foreignCachedClass = BcCache.cacheClass(o.getClass());
+		try {
+			String colunmName = null;
+			for (Entry<Field,PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
+				if (entry.getValue().foreign() && entry.getKey().getType().equals(o.getClass())) {
+					colunmName = cachedClass.columnName(entry.getKey());
+				}
+			}
+			if (colunmName == null) {
+				throw new RuntimeException("Class " + cls + " does not have a foreign object of class " + o.getClass());
+			}
+			String id = foreignCachedClass.idEntry.getKey().get(o).toString();
+			return queryMany(new Query(colunmName + " = ?", new String[] { id }, null, null, null, null));
+		} catch (IllegalArgumentException e) {
+			throw new RuntimeException(e);
+		} catch (IllegalAccessException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
 	private T queryOne(Query query) {
 		BcLog.i(query.toString());
@@ -62,7 +97,7 @@ public class BcDao<T, KD> {
 			throw new RuntimeException(e);
 		} finally {
 			if (c != null) c.close();
-			if (db != null) db.close();
+			if (db != null) BcOrm.close(db);
 		}
 		return instance;
 	}
@@ -89,7 +124,7 @@ public class BcDao<T, KD> {
 			throw new RuntimeException(e);
 		} finally {
 			if (c != null) c.close();
-			if (db != null) db.close();
+			if (db != null) BcOrm.close(db);
 		}
 		return results;
 	}
@@ -143,7 +178,7 @@ public class BcDao<T, KD> {
 		} catch (IllegalAccessException e) {
 			throw new RuntimeException(e);
 		} finally {
-			if (db != null) db.close();
+			if (db != null) BcOrm.close(db);
 		}
 		return id;
 	}
@@ -151,17 +186,15 @@ public class BcDao<T, KD> {
 	public void insertMany(List<T> objects) {
 		SQLiteDatabase db = null;
 		try {
-			db = BcSQLiteOpenHelper.getMyWritableDatabase();
-			db.beginTransaction();
+			db = getTransactionReadyDb();
 			for (T obj : objects) {
 				insertObject(obj, db);
 			}
-			db.setTransactionSuccessful();
-			db.endTransaction();
+			endTransactionReadyDb(db);
 		} catch (IllegalAccessException e) {
 			throw new RuntimeException(e);
 		} finally {
-			if (db != null) db.close();
+			if (db != null) BcOrm.close(db);
 		}
 	}
 
@@ -174,7 +207,7 @@ public class BcDao<T, KD> {
 		} catch (IllegalAccessException e) {
 			throw new RuntimeException(e);
 		} finally {
-			if (db != null) db.close();
+			if (db != null) BcOrm.close(db);
 		}
 		return id;
 	}
@@ -182,17 +215,15 @@ public class BcDao<T, KD> {
 	public void updateMany(List<T> objects) {
 		SQLiteDatabase db = null;
 		try {
-			db = BcSQLiteOpenHelper.getMyWritableDatabase();
-			db.beginTransaction();
+			db = getTransactionReadyDb();
 			for (T obj : objects) {
 				updateObject(obj, db);
 			}
-			db.setTransactionSuccessful();
-			db.endTransaction();
+			endTransactionReadyDb(db);
 		} catch (IllegalAccessException e) {
 			throw new RuntimeException(e);
 		} finally {
-			if (db != null) db.close();
+			if (db != null) BcOrm.close(db);
 		}
 	}
 
@@ -205,7 +236,7 @@ public class BcDao<T, KD> {
 		} catch (IllegalAccessException e) {
 			throw new RuntimeException(e);
 		} finally {
-			if (db != null) db.close();
+			if (db != null) BcOrm.close(db);
 		}
 		return id;
 	}
@@ -213,24 +244,22 @@ public class BcDao<T, KD> {
 	public void deleteMany(List<T> objects) {
 		SQLiteDatabase db = null;
 		try {
-			db = BcSQLiteOpenHelper.getMyWritableDatabase();
-			db.beginTransaction();
+			db = getTransactionReadyDb();
 			for (T obj : objects) {
 				deleteObject(obj, db);
 			}
-			db.setTransactionSuccessful();
-			db.endTransaction();
+			endTransactionReadyDb(db);
 		} catch (IllegalAccessException e) {
 			throw new RuntimeException(e);
 		} finally {
-			if (db != null) db.close();
+			if (db != null) BcOrm.close(db);
 		}
 	}
 	
 	public void clearTable() {
 		SQLiteDatabase db = BcSQLiteOpenHelper.getMyWritableDatabase();
 		db.delete(cachedClass.tableName(), null, null);
-		db.close();
+		BcOrm.close(db);
 	}
 
 	private int updateObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
@@ -263,6 +292,21 @@ public class BcDao<T, KD> {
 	private int deleteObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
 		String idValue = cachedClass.idEntry.getKey().get(object).toString();
 		return db.delete(cachedClass.tableName(), cachedClass.idColName + " = ?", new String[] { idValue });
+	}
+	
+	private SQLiteDatabase getTransactionReadyDb() {
+		SQLiteDatabase db = BcSQLiteOpenHelper.getMyWritableDatabase();
+		if (db != BcOrm.db) {
+			db.beginTransaction();
+		}
+		return db;
+	}
+	
+	private void endTransactionReadyDb(SQLiteDatabase db) {
+		if (db != BcOrm.db) {
+			db.setTransactionSuccessful();
+			db.endTransaction();
+		}
 	}
 
 	public class Query {

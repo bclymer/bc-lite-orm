@@ -15,13 +15,18 @@ public abstract class BcSQLiteOpenHelper extends SQLiteOpenHelper {
 	}
 	
 	public static SQLiteDatabase getMyReadableDatabase() {
+		if (BcOrm.db != null) {
+			return BcOrm.db;
+		}
 		return instance.getReadableDatabase();
 	}
 
 	public static SQLiteDatabase getMyWritableDatabase() {
+		if (BcOrm.db != null) {
+			return BcOrm.db;
+		}
 		synchronized (instance) {
 			return instance.getWritableDatabase();
 		}
 	}
-
 }
