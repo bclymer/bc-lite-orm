@@ -21,7 +21,7 @@ public class BcOrm {
 		db = null;
 	}
 	
-	public static void close(SQLiteDatabase dbToClose) {
+	static void close(SQLiteDatabase dbToClose) {
 		if (dbToClose != db) {
 			dbToClose.close();
 		}
