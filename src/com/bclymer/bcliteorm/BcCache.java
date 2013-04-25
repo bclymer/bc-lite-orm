@@ -75,11 +75,13 @@ class BcCache {
 		
 		String columnName(Field field) {
 			PersistantField persistantField = fieldAnnotations.get(field);
-			return persistantField.columnName().equals("") ? field.getName() : persistantField.columnName();
+			String columnName = persistantField.columnName().equals("") ? field.getName() : persistantField.columnName();
+			return BcOrm.tickAndCombine(columnName);
 		}
 		
 		String tableName() {
-			return persistantObject.tableName().equals("") ? cls.getSimpleName() : persistantObject.tableName();
+			String tableName = persistantObject.tableName().equals("") ? cls.getSimpleName() : persistantObject.tableName();
+			return BcOrm.tickAndCombine(tableName);
 		}
 	}
 	

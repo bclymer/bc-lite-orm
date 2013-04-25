@@ -21,7 +21,7 @@ public class TableUtil {
 		
 		int i = 0;
 		for (Entry<Field,PersistantField> fieldAnnotation : cachedClass.fieldAnnotations.entrySet()) {
-			s.append('`' + cachedClass.columnName(fieldAnnotation.getKey()) + '`');
+			s.append(cachedClass.columnName(fieldAnnotation.getKey()));
 			s.append(" ");
 			s.append(typeToSQLString(fieldAnnotation).value);
 			if (fieldAnnotation.getValue().id()) {
@@ -43,7 +43,7 @@ public class TableUtil {
 	public static void dropTable(SQLiteDatabase db, Class<?> cls) {
 		CachedClass cachedClass = BcCache.cacheClass(cls);
 		StringBuilder s = new StringBuilder("DROP TABLE IF EXISTS ");
-		s.append('`' + cachedClass.tableName() + '`');
+		s.append(cachedClass.tableName());
 		String query = s.toString();
 		BcLog.i(query);
 		db.execSQL(query);
