@@ -1,5 +1,8 @@
 package com.bclymer.bcliteorm;
 
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -133,7 +136,9 @@ public class BcDao<T, KD> {
 		for (Entry<Field, PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
 			switch (TableUtil.typeToSQLString(entry)) {
 			case BLOB:
-				entry.getKey().set(instance, c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
+				byte[] serializedBytes = c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false)));
+				Object obj = bytesToObject(serializedBytes);
+				entry.getKey().set(instance, obj);
 				break;
 			case INTEGER:
 				entry.getKey().set(instance, c.getInt(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
@@ -150,7 +155,9 @@ public class BcDao<T, KD> {
 				entry.getKey().set(instance, o);
 				switch (TableUtil.typeToSQLString(foreignCachedClass.idEntry)) {
 				case BLOB:
-					foreignCachedClass.idEntry.getKey().set(o, c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
+					byte[] foreignSerializedBytes = c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false)));
+					Object foriegnObj = bytesToObject(foreignSerializedBytes);
+					foreignCachedClass.idEntry.getKey().set(instance, foriegnObj);
 					break;
 				case INTEGER:
 					foreignCachedClass.idEntry.getKey().set(o, c.getInt(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
@@ -321,10 +328,10 @@ public class BcDao<T, KD> {
 					continue;
 				}
 				if (entry.getValue().generatedId()) {
-					int key = cachedClass.idEntry.getKey().getInt(object);
+					int key = (Integer)o;
 					if (key == 0) {
 						key = ++cachedClass.primaryId;
-						cachedClass.idEntry.getKey().setInt(object, key);
+						o = Integer.valueOf(key);
 					}
 				}
 				values.put(cachedClass.columnName(entry.getKey(), true), o.toString());
@@ -357,6 +364,32 @@ public class BcDao<T, KD> {
 			db.setTransactionSuccessful();
 			db.endTransaction();
 		}
+	}
+	
+	private Object bytesToObject(byte[] bytes) {
+		if (bytes == null) {
+			return null;
+		}
+		ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+		ObjectInput in = null;
+		try {
+		  in = new ObjectInputStream(bis);
+		  return in.readObject();
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			try {
+				bis.close();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			try {
+				in.close();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return null;
 	}
 
 	public class Query {

@@ -63,7 +63,7 @@ public class TableUtil {
 			return SqlType.INTEGER;
 		} else if (cls.equals(String.class)) {
 			return SqlType.TEXT;
-		} else if (cls.equals(Double.TYPE) || cls.equals(Double.class) || cls.equals(Long.TYPE) || cls.equals(Long.class)) {
+		} else if (cls.equals(Double.TYPE) || cls.equals(Double.class) || cls.equals(Long.TYPE) || cls.equals(Long.class) || cls.equals(Float.TYPE) || cls.equals(Float.class)) {
 			return SqlType.REAL;
 		} else if (cls instanceof Serializable) {
 			return SqlType.BLOB;
