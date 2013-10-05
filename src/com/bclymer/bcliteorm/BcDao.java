@@ -62,7 +62,7 @@ public class BcDao<T, KD> {
 			String colunmName = null;
 			for (Entry<Field,PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
 				if (entry.getValue().foreign() && entry.getKey().getType().equals(o.getClass())) {
-					colunmName = cachedClass.columnName(entry.getKey());
+					colunmName = cachedClass.columnName(entry.getKey(), true);
 				}
 			}
 			if (colunmName == null) {
@@ -133,16 +133,16 @@ public class BcDao<T, KD> {
 		for (Entry<Field, PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
 			switch (TableUtil.typeToSQLString(entry)) {
 			case BLOB:
-				entry.getKey().set(instance, c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+				entry.getKey().set(instance, c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
 				break;
 			case INTEGER:
-				entry.getKey().set(instance, c.getInt(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+				entry.getKey().set(instance, c.getInt(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
 				break;
 			case REAL:
-				entry.getKey().set(instance, c.getDouble(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+				entry.getKey().set(instance, c.getDouble(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
 				break;
 			case TEXT:
-				entry.getKey().set(instance, c.getString(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+				entry.getKey().set(instance, c.getString(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
 				break;
 			case FOREIGN:
 				CachedClass foreignCachedClass = BcCache.cacheClass(entry.getKey().getType());
@@ -150,16 +150,16 @@ public class BcDao<T, KD> {
 				entry.getKey().set(instance, o);
 				switch (TableUtil.typeToSQLString(foreignCachedClass.idEntry)) {
 				case BLOB:
-					foreignCachedClass.idEntry.getKey().set(o, c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+					foreignCachedClass.idEntry.getKey().set(o, c.getBlob(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
 					break;
 				case INTEGER:
-					foreignCachedClass.idEntry.getKey().set(o, c.getInt(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+					foreignCachedClass.idEntry.getKey().set(o, c.getInt(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
 					break;
 				case REAL:
-					foreignCachedClass.idEntry.getKey().set(o, c.getDouble(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+					foreignCachedClass.idEntry.getKey().set(o, c.getDouble(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
 					break;
 				case TEXT:
-					foreignCachedClass.idEntry.getKey().set(o, c.getString(c.getColumnIndex(cachedClass.columnName(entry.getKey()))));
+					foreignCachedClass.idEntry.getKey().set(o, c.getString(c.getColumnIndex(cachedClass.columnName(entry.getKey(), false))));
 					break;
 				case FOREIGN:
 					throw new IllegalArgumentException("ID field can not be a foreign key");
@@ -226,6 +226,35 @@ public class BcDao<T, KD> {
 			if (db != null) BcOrm.close(db);
 		}
 	}
+	
+	public long insertOrUpdate(T object) {
+		SQLiteDatabase db = null;
+		long id = -1;
+		try {
+			db = BcSQLiteOpenHelper.getMyWritableDatabase();
+			id = insertOrUpdateObject(object, db);
+		} catch (IllegalAccessException e) {
+			throw new RuntimeException(e);
+		} finally {
+			if (db != null) BcOrm.close(db);
+		}
+		return id;
+	}
+
+	public void insertOrUpdateMany(List<T> objects) {
+		SQLiteDatabase db = null;
+		try {
+			db = getTransactionReadyDb();
+			for (T obj : objects) {
+				insertOrUpdateObject(obj, db);
+			}
+			endTransactionReadyDb(db);
+		} catch (IllegalAccessException e) {
+			throw new RuntimeException(e);
+		} finally {
+			if (db != null) BcOrm.close(db);
+		}
+	}
 
 	public int delete(T object) {
 		SQLiteDatabase db = null;
@@ -266,27 +295,48 @@ public class BcDao<T, KD> {
 		ContentValues values = new ContentValues();
 		String idValue = cachedClass.idEntry.getKey().get(object).toString();
 		for (Entry<Field, PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
-			if (!cachedClass.columnName(entry.getKey()).equals(cachedClass.idColName)) {
-				values.put(cachedClass.columnName(entry.getKey()), entry.getKey().get(object).toString());
+			if (!cachedClass.columnName(entry.getKey(), true).equals(cachedClass.idColName)) {
+				values.put(cachedClass.columnName(entry.getKey(), true), entry.getKey().get(object).toString());
 			}
 		}
 		return db.update(cachedClass.tableName(), values, cachedClass.idColName + " = ?", new String[] { idValue });
 	}
 
 	private long insertObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
+		ContentValues values = getContentValues(object, db);
+		return db.insert(cachedClass.tableName(), null, values);
+	}
+
+	private long insertOrUpdateObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
+		ContentValues values = getContentValues(object, db);
+		return db.replace(cachedClass.tableName(), null, values);
+	}
+	
+	private ContentValues getContentValues(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
 		ContentValues values = new ContentValues();
 		for (Entry<Field, PersistantField> entry : cachedClass.fieldAnnotations.entrySet()) {
 			if (!entry.getValue().foreign()) {
-				values.put(cachedClass.columnName(entry.getKey()), entry.getKey().get(object).toString());
+				Object o = entry.getKey().get(object);
+				if (o == null) {
+					continue;
+				}
+				if (entry.getValue().generatedId()) {
+					int key = cachedClass.idEntry.getKey().getInt(object);
+					if (key == 0) {
+						key = ++cachedClass.primaryId;
+						cachedClass.idEntry.getKey().setInt(object, key);
+					}
+				}
+				values.put(cachedClass.columnName(entry.getKey(), true), o.toString());
 			} else {
 				CachedClass foreignCachedClass = BcCache.cacheClass(entry.getKey().getType());
 				Object o = entry.getKey().get(object);
 				if (o != null) {
-					values.put(cachedClass.columnName(entry.getKey()), foreignCachedClass.idEntry.getKey().get(o).toString());
+					values.put(cachedClass.columnName(entry.getKey(), true), foreignCachedClass.idEntry.getKey().get(o).toString());
 				}
 			}
 		}
-		return db.insert(cachedClass.tableName(), null, values);
+		return values;
 	}
 
 	private int deleteObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {

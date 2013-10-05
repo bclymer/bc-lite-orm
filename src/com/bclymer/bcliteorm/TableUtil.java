@@ -12,7 +12,7 @@ import com.bclymer.bcliteorm.annotations.PersistantField;
 public class TableUtil {
 
 	public static void createTable(SQLiteDatabase db, Class<?> cls) {
-		CachedClass cachedClass = BcCache.cacheClass(cls);
+		CachedClass cachedClass = BcCache.cacheClass(cls, true);
 		
 		StringBuilder s = new StringBuilder("CREATE TABLE ");
 		String className = cachedClass.persistantObject.tableName() == "" ? cls.getSimpleName() : cachedClass.persistantObject.tableName();
@@ -21,13 +21,18 @@ public class TableUtil {
 		
 		int i = 0;
 		for (Entry<Field,PersistantField> fieldAnnotation : cachedClass.fieldAnnotations.entrySet()) {
-			s.append(cachedClass.columnName(fieldAnnotation.getKey()));
+			s.append(cachedClass.columnName(fieldAnnotation.getKey(), true));
 			s.append(" ");
-			s.append(typeToSQLString(fieldAnnotation).value);
+			SqlType fieldType = typeToSQLString(fieldAnnotation);
+			s.append(fieldType.value);
 			if (fieldAnnotation.getValue().id()) {
 				s.append(" PRIMARY KEY");
 			} else if (fieldAnnotation.getValue().generatedId()) {
-				s.append(" PRIMARY KEY AUTOINCREMENT");
+				if (fieldType == SqlType.INTEGER) {
+					s.append(" PRIMARY KEY AUTOINCREMENT");
+				} else {
+					throw new IllegalArgumentException("generatedId fields must be of type int or Integer");
+				}
 			}
 			if (++i == cachedClass.fieldAnnotations.size()) {
 				s.append(");");
