@@ -1,10 +1,14 @@
 package com.bclymer.bcliteorm;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import android.database.sqlite.SQLiteDatabase;
 
 public class BcOrm {
 
 	static SQLiteDatabase db;
+	static List<BcOrmChangeListener> listeners = new ArrayList<BcOrmChangeListener>(1);
 	
 	public static void beginTransaction() {
 		db = BcSQLiteOpenHelper.getMyWritableDatabase();
@@ -19,6 +23,14 @@ public class BcOrm {
 		db.endTransaction();
 		db.close();
 		db = null;
+	}
+	
+	public static void addEventListener(BcOrmChangeListener listener) {
+		listeners.add(listener);
+	}
+	
+	public static void removeEventListener(BcOrmChangeListener listener) {
+		listeners.remove(listener);
 	}
 	
 	static void close(SQLiteDatabase dbToClose) {

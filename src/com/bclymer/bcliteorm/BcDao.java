@@ -306,17 +306,29 @@ public class BcDao<T, KD> {
 				values.put(cachedClass.columnName(entry.getKey(), true), entry.getKey().get(object).toString());
 			}
 		}
-		return db.update(cachedClass.tableName(), values, cachedClass.idColName + " = ?", new String[] { idValue });
+		int updated = db.update(cachedClass.tableName(), values, cachedClass.idColName + " = ?", new String[] { idValue });
+		for (BcOrmChangeListener listener : BcOrm.listeners) {
+			listener.updated(object);
+		}
+		return updated;
 	}
 
 	private long insertObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
 		ContentValues values = getContentValues(object, db);
-		return db.insert(cachedClass.tableName(), null, values);
+		long inserted = db.insert(cachedClass.tableName(), null, values);
+		for (BcOrmChangeListener listener : BcOrm.listeners) {
+			listener.inserted(object);
+		}
+		return inserted;
 	}
 
 	private long insertOrUpdateObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
 		ContentValues values = getContentValues(object, db);
-		return db.replace(cachedClass.tableName(), null, values);
+		long replaced = db.replace(cachedClass.tableName(), null, values);
+		for (BcOrmChangeListener listener : BcOrm.listeners) {
+			listener.insertedOrUpdated(object);
+		}
+		return replaced;
 	}
 	
 	private ContentValues getContentValues(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
@@ -348,7 +360,11 @@ public class BcDao<T, KD> {
 
 	private int deleteObject(T object, SQLiteDatabase db) throws IllegalArgumentException, IllegalAccessException {
 		String idValue = cachedClass.idEntry.getKey().get(object).toString();
-		return db.delete(cachedClass.tableName(), cachedClass.idColName + " = ?", new String[] { idValue });
+		int deleted = db.delete(cachedClass.tableName(), cachedClass.idColName + " = ?", new String[] { idValue });
+		for (BcOrmChangeListener listener : BcOrm.listeners) {
+			listener.deleted(object);
+		}
+		return deleted;
 	}
 	
 	private SQLiteDatabase getTransactionReadyDb() {
