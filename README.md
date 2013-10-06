@@ -1,7 +1,7 @@
 bc-lite-orm
 ===========
 
-This is a very lightweight (17kb 
+This is a very lightweight (21kb 
 for now) ORM for Android. Use this when you want to keep your app size down and just want to store peristant data without all the features of a full ORM.
 
 How to Use
