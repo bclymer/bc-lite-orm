@@ -1,8 +1,10 @@
 package com.bclymer.bcliteorm;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.ObjectInput;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +15,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
 import com.bclymer.bcliteorm.BcCache.CachedClass;
+import com.bclymer.bcliteorm.TableUtil.SqlType;
 import com.bclymer.bcliteorm.annotations.PersistantField;
 
 public class BcDao<T, KD> {
@@ -346,7 +349,20 @@ public class BcDao<T, KD> {
 						o = Integer.valueOf(key);
 					}
 				}
-				values.put(cachedClass.columnName(entry.getKey(), true), o.toString());
+				if (TableUtil.typeToSQLString(entry) == SqlType.BLOB) {
+					try {
+						ByteArrayOutputStream baos = new ByteArrayOutputStream();
+						ObjectOutputStream out = new ObjectOutputStream(baos);
+						out.writeObject(o);
+						baos.flush();
+						byte[] bytes = baos.toByteArray();
+						values.put(cachedClass.columnName(entry.getKey(), true), bytes);
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+				} else {
+					values.put(cachedClass.columnName(entry.getKey(), true), o.toString());
+				}
 			} else {
 				CachedClass foreignCachedClass = BcCache.cacheClass(entry.getKey().getType());
 				Object o = entry.getKey().get(object);
